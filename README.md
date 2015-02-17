@@ -4,6 +4,7 @@ Golang modules comunicate with YATE core via external protocol
 
 example:
 
+```
 import (
 	"./go-yate"
 )
@@ -18,3 +19,4 @@ func main() {
 	yate.Install("user.auth", authHandler)
 	goyate.Run()
 }
+```
