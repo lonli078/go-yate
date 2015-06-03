@@ -7,6 +7,7 @@ import (
     "time"
     "strconv"
     "bufio"
+    "os"
 )
 
 type Yate struct {
@@ -16,6 +17,8 @@ type Yate struct {
 	Con net.Conn
 	Handlers map[string]func(*Message)
 	Watchers map[string]func(*Message)
+	Quit chan bool
+	Daemon bool
 }
 
 
@@ -56,6 +59,10 @@ func (yate *Yate) setup_conn() net.Conn {
 	conn, err := net.Dial("tcp", fmt.Sprintf("%s:%d", yate.host, yate.port))
 	if err != nil {
 		Log("ERROR: ", fmt.Sprint(err))
+		if (yate.Daemon == true) {
+			Log("STOP")
+			os.Exit(1)
+		}
 		time.Sleep(5 *time.Second)
 		return yate.setup_conn()
 	}
@@ -64,17 +71,17 @@ func (yate *Yate) setup_conn() net.Conn {
 
 func (yate *Yate) Install(event string, handler func(*Message)) {
 	msg := "%%" + fmt.Sprintf(">install::%s", event)
-	go yate.send(&msg)
+	go yate.Send(&msg)
 	yate.Handlers[event] = handler
 }
 
 func (yate *Yate) Installwatch(event string, handler func(*Message)) {
 	msg := "%%" +fmt.Sprintf(">watch:%s", event)
-	go yate.send(&msg)
+	go yate.Send(&msg)
 	yate.Watchers[event] = handler
 }
 
-func (yate *Yate) send(msg *string) {
+func (yate *Yate) Send(msg *string) {
 	Log("SEND:", *msg)
 	yate.Con.Write([]byte(*msg + "\n"))
 }
@@ -82,8 +89,19 @@ func (yate *Yate) send(msg *string) {
 func (yate *Yate) Close() {
     yate.Con.Close()
     Log("Disconnect")
+    if (yate.Daemon == true) {
+		Log("STOP")
+		os.Exit(1)
+		//yate.Quit <- true
+		return
+	}
 	yate.start_connection()
 	yate.RetryHandlers()
+}
+
+func (yate *Yate) Run() {
+	<-yate.Quit
+	Log("STOP")
 }
 
 func (yate *Yate) messageReceived(values *string) {
@@ -95,8 +113,9 @@ func (yate *Yate) messageReceived(values *string) {
 					   TimeStamp: message[1], 
 					   Name: message[2],
 					   Attrs: make(map[string]string),
-					   Yate: yate}
-	newmsg.parse_attrs(&message[4])
+					   Yate: yate,
+                       Raw: *values}
+	newmsg.Parse_attrs(&message[4])
 	go yate.Handlers[newmsg.Name](newmsg)
 
 }
@@ -111,7 +130,7 @@ func (yate *Yate) watchReceived(values []string) {
 					   RetValue: values[3],
 					   Attrs: make(map[string]string),
 					   Yate: yate}
-	newmsg.parse_attrs(&values[4])
+	newmsg.Parse_attrs(&values[4])
 	go yate.Watchers[newmsg.Name](newmsg)
 }
 
@@ -163,6 +182,16 @@ func (yate *Yate) rawmsgparser(raw *string) {
 	}
 }
 
+func Parse_message(values *string) (newmsg *Message){
+	message := strings.SplitN(*values, ":", 5)
+	newmsg = &Message{Mid: message[0], 
+					   TimeStamp: message[1], 
+					   Name: message[2],
+					   Attrs: make(map[string]string),
+                       Raw: *values}
+	newmsg.Parse_attrs(&message[4])
+	return 
+}
 
 
 /************MESSAGE*************************************************/
@@ -175,9 +204,10 @@ type Message struct {
 	Attrs map[string]string
 	Returned string
 	Yate *Yate
+    Raw string
 }
 
-func (msg *Message) parse_attrs(attrs *string) {
+func (msg *Message) Parse_attrs(attrs *string) {
 	for _,v := range strings.Split(*attrs, ":") {
 		raw := strings.SplitN(v, "=", 2)
         if len(raw) < 2 {
@@ -188,7 +218,7 @@ func (msg *Message) parse_attrs(attrs *string) {
 	}
 }
 
-func (msg *Message) format_attrs() (result string) {
+func (msg *Message) Format_attrs() (result string) {
 	for k,v := range msg.Attrs {
 		if k != "handlers" {
 			result = result + ":" + k + "=" + escape(v)
@@ -197,7 +227,7 @@ func (msg *Message) format_attrs() (result string) {
 	return
 }
         
-func (msg *Message) format_message_response(returned bool, retvalue string) (*string) {
+func (msg *Message) Format_message_response(returned bool, retvalue string) (*string) {
 	result := fmt.Sprintf("%%%%<message:%s:%s:%s:", 
 					     msg.Mid, 
 					     strconv.FormatBool(returned), 
@@ -205,11 +235,11 @@ func (msg *Message) format_message_response(returned bool, retvalue string) (*st
 	if retvalue != "" {
 		result = result + escape(retvalue)
 	}
-	result = result + msg.format_attrs()
+	result = result + msg.Format_attrs()
 	return &result
 }
 
 func (msg *Message) Ret(handled bool, retvalue string) {
-	resp := msg.format_message_response(handled, retvalue)
-	msg.Yate.send(resp)
+	resp := msg.Format_message_response(handled, retvalue)
+	msg.Yate.Send(resp)
 }
