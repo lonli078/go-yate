@@ -211,7 +211,7 @@ func (msg *Message) Parse_attrs(attrs *string) {
 	for _,v := range strings.Split(*attrs, ":") {
 		raw := strings.SplitN(v, "=", 2)
         if len(raw) < 2 {
-            Log("parse attrs error")
+            Log(raw, "<<<<parse attrs error")
             continue
         }
 		msg.Attrs[raw[0]] = strings.Replace(unescape(raw[1]), " ", "", -1)

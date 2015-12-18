@@ -27,11 +27,43 @@ func logger_start() {
 	}
 }
 
-func unescape(s string) (string) {
-	return strings.Replace(s, "%z", ":", -1)
+func escape(str string) (string) {
+    str = str + ""
+    s := ""
+    n := len(str)
+    i := 0
+    for i < n {
+        c := string(str[i])
+        if([]rune(c)[0] < 32  || c == ":") {
+            c = string([]rune(c)[0] + 64)
+            s = s + "%"
+        } else if ( c == "%" ){
+            s = s + c
+        }
+        s = s + c
+        i = i + 1
+		
+	}
+	return s
 }
-func escape(s string) (string) {
-	return strings.Replace(s, ":", "%z", -1)
+    
+func unescape(str string) (string) {
+    s := ""
+    n := len(str)
+    i := 0
+    for i < n {
+        c := string(str[i])
+        if (c == "%") {
+            i = i + 1
+            c = string(str[i])
+            if (c != "%") {
+                c = string([]rune(c)[0] - 64)
+	    }
+	}
+        s = s + c
+        i = i + 1
+    }
+    return s
 }
 
 func Start(host string, port int, daemon bool) *Yate {
