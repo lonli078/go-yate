@@ -6,6 +6,8 @@ import (
     "log"
     "time"
     "os"
+    "bufio"
+    "unicode/utf8"
 )
 var DEBUG = flag.Bool("d", false, "set the debug modus( print informations )")
 var LOGFILE = flag.String("w", "", "set the log file")
@@ -32,35 +34,35 @@ func escape(str string) (string) {
     n := len(str)
     i := 0
     for i < n {
-        c := string(str[i])
-        if([]rune(c)[0] < 32  || c == ":") {
-            c = string([]rune(c)[0] + 64)
+		c, size := utf8.DecodeRuneInString(str[i:])
+        if(c < 32  || c == ':') {
+            c = rune(c + 64)
             s = s + "%"
-        } else if ( c == "%" ){
-            s = s + c
+        } else if ( c == '%' ){
+            s = s + string(c)
         }
-        s = s + c
-        i = i + 1
+        s = s + string(c)
+        i = i + size
 		
 	}
 	return s
 }
-    
+
 func unescape(str string) (string) {
     s := ""
     n := len(str)
     i := 0
     for i < n {
-        c := string(str[i])
-        if (c == "%") {
-            i = i + 1
-            c = string(str[i])
-            if (c != "%") {
-                c = string([]rune(c)[0] - 64)
+		c, size := utf8.DecodeRuneInString(str[i:])
+        if (c == '%') {
+            i = i + size
+            c, size = utf8.DecodeRuneInString(str[i:])
+            if (c != '%') {
+                c = rune(c - 64)
+	        }
 	    }
-	}
-        s = s + c
-        i = i + 1
+        s = s + string(c)
+        i = i + size
     }
     return s
 }
@@ -75,6 +77,15 @@ func Start(host string, port int, daemon bool) *Yate {
 		          Handlers:make(map[string]func(*Message)),
 		          Watchers:make(map[string]func(*Message))}
 	yate.start_connection()
+	return yate
+}
+
+func StartScript() *Myate {
+	yate := &Myate{status:true,
+		           Handlers:make(map[string]func(*Myate, *Message)),
+		           stdin:bufio.NewScanner(os.Stdin),
+		           stdout:bufio.NewWriter(os.Stdout),
+		           stderr:bufio.NewScanner(os.Stderr)}
 	return yate
 }
 

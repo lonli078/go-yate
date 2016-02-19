@@ -243,3 +243,40 @@ func (msg *Message) Ret(handled bool, retvalue string) {
 	resp := msg.Format_message_response(handled, retvalue)
 	msg.Yate.Send(resp)
 }
+
+
+/************MYATE*************************************************/
+
+type Myate struct {
+	stdin        *bufio.Scanner
+	stdout       *bufio.Writer
+	stderr       *bufio.Scanner
+	status       bool
+	Handlers     map[string]func(*Myate, *Message)
+}
+
+func (yate *Myate) AddCallback(name string, handler func(*Myate, *Message)){
+	yate.Handlers[name] = handler
+}
+
+func (yate *Myate) Log(v ...interface{}) {
+	yate.stdout.WriteString(fmt.Sprint(v))
+	yate.stdout.Flush()
+}
+
+func (yate *Myate) Listener() {
+	for yate.stdin.Scan() {
+		raw_text := yate.stdin.Text()
+		message := strings.SplitN(raw_text, ":", 6)
+		yate.Log(message)
+		newmsg := &Message{Mid: message[1], 
+						   TimeStamp: message[2], 
+						   Name: message[3],
+						   Attrs: make(map[string]string),
+						   Raw: raw_text}
+		newmsg.Parse_attrs(&message[4])
+		yate.Log(newmsg)
+		yate.Handlers[newmsg.Name](yate, newmsg)
+		
+	}
+}
