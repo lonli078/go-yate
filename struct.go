@@ -214,7 +214,8 @@ func (msg *Message) Parse_attrs(attrs *string) {
             Log(raw, "<<<<parse attrs error")
             continue
         }
-		msg.Attrs[raw[0]] = strings.Replace(unescape(raw[1]), " ", "", -1)
+		//msg.Attrs[raw[0]] = strings.Replace(unescape(raw[1]), " ", "", -1)
+		msg.Attrs[raw[0]] = unescape(raw[1])
 	}
 }
 
